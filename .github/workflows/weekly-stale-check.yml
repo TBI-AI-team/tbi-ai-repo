@@ -1,0 +1,116 @@
+name: ⏰ Wekelijkse inactiviteitscheck
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'   # Elke maandag om 07:00 UTC = 08:00/09:00 NL
+  workflow_dispatch:        # Handmatig triggeren via GitHub UI
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  stale-check:
+    name: Check inactieve initiatieven
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🔍 Zoek inactieve initiatieven
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const twoWeeksAgo = new Date();
+            twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+            // Haal alle open issues op
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner:     context.repo.owner,
+              repo:      context.repo.repo,
+              state:     'open',
+              per_page:  100,
+            });
+
+            const staleIssues = issues.filter(issue => {
+              if (issue.pull_request) return false;
+              const updated     = new Date(issue.updated_at);
+              const hasStale    = issue.labels.some(l => l.name === 'stale');
+              const isOnHold    = issue.labels.some(l => l.name === 'status: on hold');
+              return updated < twoWeeksAgo && !hasStale && !isOnHold;
+            });
+
+            console.log(`📊 Status: ${issues.length} open issues, ${staleIssues.length} inactief`);
+
+            // Verwerk elk stale issue
+            for (const issue of staleIssues) {
+              console.log(`⏰ Stale: #${issue.number} — ${issue.title}`);
+
+              // Voeg stale label toe
+              await github.rest.issues.addLabels({
+                owner:        context.repo.owner,
+                repo:         context.repo.repo,
+                issue_number: issue.number,
+                labels:       ['stale'],
+              });
+
+              // Bepaal eigenaar / assignee voor mention
+              const assignees = issue.assignees.map(a => `@${a.login}`).join(', ') || 'de eigenaar';
+
+              // Post reminder comment
+              await github.rest.issues.createComment({
+                owner:        context.repo.owner,
+                repo:         context.repo.repo,
+                issue_number: issue.number,
+                body: `⏰ **Automatische herinnering — ${new Date().toLocaleDateString('nl-NL')}**
+
+            Dit initiatief heeft meer dan 2 weken geen activiteit gehad.
+
+            ${assignees} — kun je een korte statusupdate geven?
+
+            - [ ] Initiatief is nog actueel en gaat verder
+            - [ ] Er zijn blokkades (beschrijf hieronder)
+            - [ ] Initiatief wordt geparkeerd (zet label \`status: on hold\`)
+            - [ ] Initiatief wordt ingetrokken (sluit dit issue)
+
+            Als er binnen 7 dagen geen reactie is, neemt het AI team telefonisch contact op.
+
+            ---
+            *Dit is een automatisch bericht van de TBI AI backlog. Vragen? Mail [ai-team@tbi.nl](mailto:ai-team@tbi.nl)*`,
+              });
+
+              // Kleine pauze tussen comments (rate limiting)
+              await new Promise(r => setTimeout(r, 500));
+            }
+
+            // Rapporteer naar Teams als er stale issues zijn
+            if (staleIssues.length > 0 && process.env.TEAMS_WEBHOOK_URI) {
+              const issueList = staleIssues.slice(0, 8).map(i => {
+                const daysSince = Math.floor((new Date() - new Date(i.updated_at)) / 86400000);
+                return `• #${i.number} — ${i.title.substring(0, 60)} (${daysSince}d inactief)`;
+              }).join('\n');
+
+              await fetch(process.env.TEAMS_WEBHOOK_URI, {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  "@type":   "MessageCard",
+                  "themeColor": "ffae0d",
+                  "summary": `TBI AI — ${staleIssues.length} inactieve initiatieven`,
+                  "sections": [{
+                    "activityTitle":    `⏰ Wekelijkse check — ${staleIssues.length} initiatieven inactief`,
+                    "activitySubtitle": `Maandag ${new Date().toLocaleDateString('nl-NL')}`,
+                    "text": `De volgende initiatieven hebben 2+ weken geen activiteit:\n\n${issueList}`,
+                  }],
+                  "potentialAction": [{
+                    "@type": "OpenUri",
+                    "name":  "📋 Bekijk stale initiatieven",
+                    "targets": [{
+                      "os":  "default",
+                      "uri": `https://github.com/${context.repo.owner}/${context.repo.repo}/issues?q=is%3Aopen+label%3Astale`,
+                    }],
+                  }],
+                }),
+              });
+            }
+        env:
+          TEAMS_WEBHOOK_URI: ${{ secrets.TEAMS_WEBHOOK_URI }}

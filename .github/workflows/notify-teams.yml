@@ -1,0 +1,193 @@
+name: 📣 Teams Notificatie — Nieuw AI Initiatief
+
+on:
+  issues:
+    types: [opened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: read
+  contents: read
+
+jobs:
+  # ══════════════════════════════════════════════════════════════
+  # JOB 1: Notificeer bij nieuw initiatief
+  # ══════════════════════════════════════════════════════════════
+  notify-new-initiatief:
+    name: Notify Teams — nieuw initiatief
+    runs-on: ubuntu-latest
+    if: github.event_name == 'issues' && github.event.action == 'opened'
+
+    steps:
+      - name: 🔍 Parse issue voor notificatie
+        id: parse
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const body = context.payload.issue.body || '';
+
+            function extractField(body, label) {
+              const regex = new RegExp(
+                `###\\s+${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\n+([\\s\\S]*?)(?=\\n###|\\n---|\$)`,
+                'i'
+              );
+              const m = body.match(regex);
+              return m ? m[1].trim().split('\n')[0] : '—';
+            }
+
+            const bedrijf      = extractField(body, 'TBI Bedrijf');
+            const ambassadeur  = extractField(body, 'Ambassadeur (Directielid)');
+            const doelstelling = extractField(body, 'Doelstelling');
+            const fase         = extractField(body, 'Startfase').split(' —')[0];
+            const impact       = extractField(body, 'Verwachte impact').split(' —')[0];
+            const domein       = extractField(body, 'Primair domein').split(' &')[0];
+
+            core.setOutput('bedrijf',      bedrijf);
+            core.setOutput('ambassadeur',  ambassadeur);
+            core.setOutput('doelstelling', doelstelling.substring(0, 120));
+            core.setOutput('fase',         fase);
+            core.setOutput('impact',       impact);
+            core.setOutput('domein',       domein);
+            core.setOutput('issue_url',    context.payload.issue.html_url);
+            core.setOutput('issue_number', context.payload.issue.number);
+            core.setOutput('issue_title',  context.payload.issue.title);
+            core.setOutput('indiener',     context.payload.issue.user.login);
+
+      - name: 📣 Post naar Teams
+        uses: jdcargile/ms-teams-notification@v1.4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          ms-teams-webhook-uri: ${{ secrets.TEAMS_WEBHOOK_URI }}
+          notification-summary: "🤖 Nieuw TBI AI Initiatief — ${{ steps.parse.outputs.bedrijf }}"
+          notification-color: "630d80"
+          timezone: "Europe/Amsterdam"
+
+      # Fallback: directe webhook POST voor volledige controle over kaartopmaak
+      - name: 📣 Post Adaptive Card naar Teams
+        if: always()
+        run: |
+          curl -s -X POST "${{ secrets.TEAMS_WEBHOOK_URI }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "@type": "MessageCard",
+              "@context": "https://schema.org/extensions",
+              "themeColor": "630d80",
+              "summary": "Nieuw TBI AI Initiatief",
+              "sections": [{
+                "activityTitle": "🤖 Nieuw AI Initiatief #${{ steps.parse.outputs.issue_number }}",
+                "activitySubtitle": "${{ steps.parse.outputs.issue_title }}",
+                "activityImage": "https://www.tbi.nl/favicon.ico",
+                "facts": [
+                  { "name": "Bedrijf",     "value": "${{ steps.parse.outputs.bedrijf }}" },
+                  { "name": "Ambassadeur", "value": "${{ steps.parse.outputs.ambassadeur }}" },
+                  { "name": "Domein",      "value": "${{ steps.parse.outputs.domein }}" },
+                  { "name": "Fase",        "value": "${{ steps.parse.outputs.fase }}" },
+                  { "name": "Impact",      "value": "${{ steps.parse.outputs.impact }}" },
+                  { "name": "Ingediend door", "value": "${{ steps.parse.outputs.indiener }}" }
+                ],
+                "text": "**Doelstelling:** ${{ steps.parse.outputs.doelstelling }}..."
+              }],
+              "potentialAction": [{
+                "@type": "OpenUri",
+                "name": "📋 Bekijk initiatief",
+                "targets": [{ "os": "default", "uri": "${{ steps.parse.outputs.issue_url }}" }]
+              }]
+            }'
+
+  # ══════════════════════════════════════════════════════════════
+  # JOB 2: Wekelijkse inactiviteitscheck
+  # ══════════════════════════════════════════════════════════════
+  stale-reminder:
+    name: Remind bij inactieve initiatieven
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+
+    steps:
+      - name: 🔍 Zoek inactieve open initiatieven
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const twoWeeksAgo = new Date();
+            twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner:     context.repo.owner,
+              repo:      context.repo.repo,
+              state:     'open',
+              per_page:  100,
+            });
+
+            const stale = issues.filter(issue => {
+              const updated = new Date(issue.updated_at);
+              const hasStaleLabel = issue.labels.some(l => l.name === 'stale');
+              return updated < twoWeeksAgo && !hasStaleLabel;
+            });
+
+            console.log(`Found ${stale.length} stale initiatives`);
+
+            for (const issue of stale) {
+              // Add stale label
+              await github.rest.issues.addLabels({
+                owner:        context.repo.owner,
+                repo:         context.repo.repo,
+                issue_number: issue.number,
+                labels:       ['stale'],
+              });
+
+              // Post reminder comment
+              await github.rest.issues.createComment({
+                owner:        context.repo.owner,
+                repo:         context.repo.repo,
+                issue_number: issue.number,
+                body: `⏰ **Herinnering:** Dit initiatief heeft 2 weken geen activiteit gehad.
+
+                Graag een statusupdate van de eigenaar of ambassadeur:
+                - Is dit initiatief nog actueel?
+                - Zijn er blokkades?
+                - Wanneer wordt de volgende stap gezet?
+
+                Als er binnen 7 dagen geen reactie is, neemt het AI team contact op.`,
+              });
+            }
+
+            // Notify Teams about stale count
+            if (stale.length > 0) {
+              const webhookUrl = process.env.TEAMS_WEBHOOK_URI;
+              if (webhookUrl) {
+                await fetch(webhookUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    "@type": "MessageCard",
+                    "themeColor": "ffae0d",
+                    "summary": "TBI AI — Inactieve initiatieven",
+                    "sections": [{
+                      "activityTitle": `⏰ ${stale.length} AI initiatieven zijn 2+ weken inactief`,
+                      "activitySubtitle": "Wekelijkse inactiviteitscheck",
+                      "facts": stale.slice(0, 5).map(i => ({
+                        name: `#${i.number}`,
+                        value: i.title,
+                      })),
+                    }],
+                    "potentialAction": [{
+                      "@type": "OpenUri",
+                      "name": "📋 Bekijk backlog",
+                      "targets": [{ "os": "default", "uri": `https://github.com/${context.repo.owner}/${context.repo.repo}/issues` }]
+                    }]
+                  }),
+                });
+              }
+            }
+        env:
+          TEAMS_WEBHOOK_URI: ${{ secrets.TEAMS_WEBHOOK_URI }}
+
+# Voeg ook een schedule toe voor de wekelijkse check
+# (Aparte workflow, hier ter referentie)
+---
+# .github/workflows/weekly-check.yml (apart bestand — zie docs/handleiding.md)
+# on:
+#   schedule:
+#     - cron: '0 8 * * 1'  # Elke maandag om 08:00 CET

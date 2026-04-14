@@ -1,0 +1,147 @@
+name: 📊 Dashboard Data Update
+
+on:
+  issues:
+    types: [opened, closed, labeled, unlabeled, edited]
+  schedule:
+    - cron: '0 6 * * *'   # Dagelijks om 06:00 UTC (08:00 NL tijd)
+
+permissions:
+  issues: read
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  update-dashboard-data:
+    name: Genereer dashboard data
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: 📥 Fetch alle open initiatieven via API
+        uses: actions/github-script@v7
+        id: fetch-issues
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const allIssues = [];
+            let page = 1;
+
+            while (true) {
+              const { data } = await github.rest.issues.listForRepo({
+                owner:    context.repo.owner,
+                repo:     context.repo.repo,
+                state:    'all',
+                per_page: 100,
+                page:     page,
+              });
+              if (data.length === 0) break;
+              allIssues.push(...data);
+              page++;
+            }
+
+            // ── Helper: parse form field uit issue body ────────────────────
+            function parseField(body, label) {
+              const regex = new RegExp(
+                `###\\s+${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\n+([\\s\\S]*?)(?=\\n###|\\n---|\$)`,
+                'i'
+              );
+              const m = (body || '').match(regex);
+              return m ? m[1].trim().split('\n')[0] : '';
+            }
+
+            function getLabel(issue, prefix) {
+              const lbl = issue.labels.find(l => l.name.startsWith(prefix + ': '));
+              return lbl ? lbl.name.replace(prefix + ': ', '') : '';
+            }
+
+            // ── Verwerk alle issues ────────────────────────────────────────
+            const projects = allIssues
+              .filter(i => !i.pull_request)
+              .map(issue => {
+                const body       = issue.body || '';
+                const bedrijf    = parseField(body, 'TBI Bedrijf')   || getLabel(issue, 'bedrijf');
+                const sector     = parseField(body, 'Sector')        || getLabel(issue, 'sector');
+                const fase       = getLabel(issue, 'fase')           || parseField(body, 'Startfase').split(' —')[0];
+                const domein     = getLabel(issue, 'domein')         || parseField(body, 'Primair domein').split(' &')[0];
+                const impactRaw  = getLabel(issue, 'impact')        || parseField(body, 'Verwachte impact');
+                const impact     = parseInt(impactRaw) || 3;
+                const titel      = issue.title.replace(/^\[INITIATIEF\]\s*/i, '').split(' — ')[0].trim();
+                const sub        = parseField(body, 'Primair domein');
+                const desc       = parseField(body, 'Algemene omschrijving').substring(0, 180);
+                const locatie    = parseField(body, 'Locatie hoofdkantoor');
+                const status     = issue.state === 'closed' ? 'Operate' : (fase || 'Discover');
+                const milestone  = issue.milestone?.title || '';
+
+                return {
+                  id:         issue.number,
+                  titel,
+                  sub,
+                  bedrijf,
+                  sector:     sector.replace('sector: ', '').toUpperCase().split(' &')[0].trim() || 'OVERIG',
+                  status,
+                  domein,
+                  impact,
+                  desc,
+                  locatie,
+                  milestone,
+                  url:        issue.html_url,
+                  created_at: issue.created_at,
+                  updated_at: issue.updated_at,
+                  labels:     issue.labels.map(l => l.name),
+                  closed:     issue.state === 'closed',
+                };
+              });
+
+            // ── Schrijf naar JSON ──────────────────────────────────────────
+            const fs    = require('fs');
+            const stats = {
+              total:      projects.length,
+              open:       projects.filter(p => !p.closed).length,
+              by_fase:    {},
+              by_sector:  {},
+              by_bedrijf: {},
+              generated:  new Date().toISOString(),
+            };
+
+            projects.forEach(p => {
+              stats.by_fase[p.status]   = (stats.by_fase[p.status]   || 0) + 1;
+              stats.by_sector[p.sector] = (stats.by_sector[p.sector] || 0) + 1;
+              stats.by_bedrijf[p.bedrijf] = (stats.by_bedrijf[p.bedrijf] || 0) + 1;
+            });
+
+            const output = { projects, stats };
+            fs.writeFileSync('dashboard/data.json', JSON.stringify(output, null, 2));
+            console.log(`Written ${projects.length} projects to dashboard/data.json`);
+
+            core.setOutput('count', projects.length);
+
+      - name: 💾 Commit bijgewerkte data
+        run: |
+          git config user.name  "TBI AI Bot"
+          git config user.email "ai-bot@tbi.nl"
+          git add dashboard/data.json
+          git diff --staged --quiet || git commit -m "📊 Update dashboard data — ${{ steps.fetch-issues.outputs.count }} initiatieven [skip ci]"
+          git push
+
+      - name: 🚀 Deploy naar GitHub Pages
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dashboard/
+
+  deploy-pages:
+    name: Deploy GitHub Pages
+    needs: update-dashboard-data
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 🌐 Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

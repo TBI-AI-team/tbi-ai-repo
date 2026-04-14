@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TBI AI Team — Innovation Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+:root {
+  --paars:    #630d80;
+  --groen:    #c1e62e;
+  --cta:      #a816d9;
+  --blauw:    #1489cc;
+  --lblauw:   #2fb2eb;
+  --cyaan:    #26bdbd;
+  --rood:     #f26457;
+  --amber:    #ffae0d;
+  --grijs1:   #404040;
+  --grijs2:   #7a7a8a;
+  --grijs3:   #cccccc;
+  --grijs4:   #f0f0f5;
+  --white:    #ffffff;
+  --radius:   16px;
+  --radius-sm:10px;
+  --shadow:   0 1px 3px rgba(0,0,0,.07), 0 4px 16px rgba(0,0,0,.05);
+  --shadow-lg:0 8px 32px rgba(99,13,128,.13), 0 2px 8px rgba(0,0,0,.08);
+  --dur: 18000;
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100vh;overflow:hidden;
+  background:var(--grijs4);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Verdana,sans-serif;
+  color:var(--grijs1);-webkit-font-smoothing:antialiased;}
+
+/* ═══════════════════════════════════════════════════════════
+   HEADER
+═══════════════════════════════════════════════════════════ */
+.header{
+  position:fixed;top:22px;left:22px;right:22px;height:72px;
+  background:rgba(255,255,255,.97);
+  border-radius:20px;
+  box-shadow:var(--shadow-lg);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;z-index:1000;
+  border:1px solid rgba(99,13,128,.10);
+}
+.hdr-left{display:flex;align-items:center;gap:16px;}
+.tbi-mark{
+  background:var(--paars);color:var(--groen);
+  width:46px;height:46px;border-radius:11px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.6rem;font-weight:900;letter-spacing:1.5px;flex-shrink:0;
+}
+.hdr-sep{width:1px;height:32px;background:#e5e5ea;flex-shrink:0;}
+.hdr-title{font-size:1.25rem;font-weight:800;color:var(--paars);letter-spacing:-.3px;line-height:1;}
+.hdr-sub{font-size:.67rem;color:var(--grijs2);font-weight:500;margin-top:3px;
+  display:flex;align-items:center;gap:7px;}
+.live-dot{width:6px;height:6px;border-radius:50%;background:#34c759;
+  animation:pulse 2s ease-in-out infinite;flex-shrink:0;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+
+/* Nav pills */
+.nav-pills{display:flex;gap:6px;}
+.pill{
+  padding:6px 15px;border-radius:20px;font-size:.7rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:.4px;cursor:pointer;
+  border:1.5px solid transparent;transition:all .25s ease;
+  color:var(--grijs2);background:var(--grijs4);user-select:none;
+}
+.pill.active{background:var(--paars);color:var(--groen);border-color:var(--paars);}
+.pill:not(.active):hover{border-color:var(--paars);color:var(--paars);}
+
+.hdr-right{text-align:right;flex-shrink:0;}
+#clock{font-size:1.25rem;font-weight:800;color:var(--grijs1);font-variant-numeric:tabular-nums;}
+.hdr-date{font-size:.65rem;color:var(--grijs2);margin-top:2px;font-weight:500;}
+
+/* ═══════════════════════════════════════════════════════════
+   MAIN + VIEWS
+═══════════════════════════════════════════════════════════ */
+.main{position:fixed;top:110px;left:22px;right:22px;bottom:22px;overflow:hidden;}
+.view{
+  position:absolute;inset:0;width:100%;height:100%;
+  opacity:0;transform:translateY(14px) scale(.99);
+  transition:opacity .55s cubic-bezier(.4,0,.2,1),
+             transform .55s cubic-bezier(.4,0,.2,1);
+  pointer-events:none;
+}
+.view.active{opacity:1;transform:translateY(0) scale(1);pointer-events:all;}
+
+/* ═══════════════════════════════════════════════════════════
+   PROGRESS BAR
+═══════════════════════════════════════════════════════════ */
+.progress-wrap{
+  position:fixed;bottom:8px;left:22px;right:22px;
+  height:3px;background:rgba(99,13,128,.12);border-radius:2px;z-index:999;
+}
+.progress-fill{
+  height:100%;background:linear-gradient(90deg,var(--paars),var(--cta));
+  border-radius:2px;width:0%;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   VIEW 1 — KAART (D3 SVG)
+═══════════════════════════════════════════════════════════ */
+#view-kaart{border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-lg);position:relative;background:#d8ebf5;}
+#nl-map{display:block;width:100%;height:100%;}
+.prov{fill:#f5edf9;stroke:#c4a0d6;stroke-width:.6;transition:fill .2s;}
+.prov:hover{fill:#ede0f5;}
+.prov-lbl{font-size:9px;fill:#9060b0;font-weight:600;font-family:Verdana,sans-serif;
+  pointer-events:none;text-anchor:middle;dominant-baseline:middle;}
+.sea-label{font-size:11px;fill:#8ab8d4;font-weight:700;font-family:Verdana,sans-serif;letter-spacing:2px;}
+/* Pin */
+.pin-shadow{opacity:.18;}
+.pin-circle{stroke:white;stroke-width:2.5;cursor:pointer;}
+.pin-txt{fill:white;font-size:8.5px;font-weight:900;font-family:Verdana,sans-serif;
+  text-anchor:middle;dominant-baseline:middle;pointer-events:none;}
+.pin-badge{fill:#c1e62e;stroke:white;stroke-width:1.5;}
+.pin-badge-txt{font-size:7px;font-weight:900;font-family:Verdana,sans-serif;
+  text-anchor:middle;dominant-baseline:middle;pointer-events:none;fill:#404040;}
+/* Tooltip */
+#map-tt{
+  position:absolute;background:white;border-radius:14px;
+  padding:13px 16px;box-shadow:0 8px 28px rgba(0,0,0,.18);
+  min-width:210px;pointer-events:none;opacity:0;
+  transition:opacity .2s ease;z-index:600;
+}
+.tt-sector{font-size:.58rem;font-weight:800;text-transform:uppercase;
+  letter-spacing:.8px;padding:2px 8px;border-radius:5px;color:white;display:inline-block;margin-bottom:6px;}
+.tt-name{font-size:.95rem;font-weight:800;color:var(--grijs1);margin-bottom:7px;}
+.tt-proj{display:flex;align-items:center;gap:7px;padding:4px 0;
+  border-bottom:1px solid #f2f2f7;font-size:.73rem;color:var(--grijs1);}
+.tt-proj:last-child{border-bottom:none;padding-bottom:0;}
+.tt-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+
+.map-overlay{position:absolute;z-index:500;}
+.map-legend{
+  bottom:20px;left:20px;
+  background:rgba(255,255,255,.97);border-radius:14px;
+  padding:14px 16px;box-shadow:var(--shadow);min-width:150px;
+}
+.legend-title{
+  font-size:.62rem;font-weight:800;text-transform:uppercase;
+  letter-spacing:.6px;color:var(--paars);margin-bottom:9px;
+}
+.legend-item{display:flex;align-items:center;gap:8px;margin-bottom:5px;
+  font-size:.72rem;font-weight:500;color:var(--grijs1);}
+.ldot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.legend-sep{height:1px;background:#f0f0f5;margin:8px 0;}
+.map-stats{top:20px;right:20px;display:flex;flex-direction:column;gap:8px;}
+.map-stat{
+  background:rgba(255,255,255,.97);border-radius:12px;
+  padding:12px 16px;text-align:center;box-shadow:var(--shadow);min-width:110px;
+}
+.map-stat-n{font-size:2rem;font-weight:900;color:var(--paars);line-height:1;}
+.map-stat-l{font-size:.6rem;color:var(--grijs2);font-weight:700;
+  text-transform:uppercase;letter-spacing:.5px;margin-top:2px;}
+
+/* ═══════════════════════════════════════════════════════════
+   VIEW 2 — PIPELINE
+═══════════════════════════════════════════════════════════ */
+#view-pipeline{display:flex;flex-direction:column;gap:12px;}
+.pipe-heads{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.pipe-head{
+  background:var(--white);border-radius:var(--radius-sm);
+  padding:13px 16px;box-shadow:var(--shadow);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.ph-left .ph-label{font-size:.8rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;}
+.ph-left .ph-desc{font-size:.62rem;color:var(--grijs2);font-weight:500;margin-top:2px;}
+.ph-count{font-size:1.6rem;font-weight:900;line-height:1;}
+
+.pipe-cols{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;flex:1;overflow:hidden;}
+.pipe-col{
+  border-radius:14px;padding:10px;
+  display:flex;flex-direction:column;gap:7px;
+  overflow-y:auto;overflow-x:hidden;
+}
+.pipe-col::-webkit-scrollbar{width:0;}
+
+.proj-card{
+  background:var(--white);border-radius:10px;padding:11px 13px;
+  box-shadow:0 1px 3px rgba(0,0,0,.06),0 2px 8px rgba(0,0,0,.04);
+  border-left:3.5px solid var(--paars);
+  transition:transform .2s ease,box-shadow .2s ease;cursor:default;
+}
+.proj-card:hover{transform:translateY(-2px);box-shadow:0 4px 16px rgba(99,13,128,.12);}
+.pc-co{font-size:.58rem;font-weight:800;text-transform:uppercase;
+  letter-spacing:.5px;color:var(--grijs2);margin-bottom:2px;}
+.pc-title{font-size:.83rem;font-weight:700;color:var(--grijs1);line-height:1.3;margin-bottom:5px;}
+.pc-foot{display:flex;align-items:center;justify-content:space-between;}
+.pc-tag{font-size:.6rem;font-weight:700;color:white;
+  padding:2px 7px;border-radius:4px;display:inline-block;}
+.pc-impact{display:flex;gap:2px;align-items:center;}
+.idot{width:5px;height:5px;border-radius:50%;background:var(--grijs3);}
+.idot.on{background:var(--groen);}
+
+/* ═══════════════════════════════════════════════════════════
+   VIEW 3 — BACKLOG
+═══════════════════════════════════════════════════════════ */
+#view-backlog{overflow:hidden;}
+.bl-wrap{
+  position:absolute;inset:0;
+  overflow-y:scroll;overflow-x:hidden;
+  scrollbar-width:none;
+}
+.bl-wrap::-webkit-scrollbar{display:none;}
+.bl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding-bottom:30px;}
+
+.bl-card{
+  background:var(--white);border-radius:var(--radius);overflow:hidden;
+  box-shadow:var(--shadow);
+  transition:transform .3s ease,box-shadow .3s ease;
+}
+.bl-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg);}
+.bl-top{padding:14px 16px 11px;border-bottom:1px solid #f2f2f7;}
+.bl-header{display:flex;align-items:flex-start;justify-content:space-between;
+  gap:8px;margin-bottom:5px;}
+.bl-co{font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;}
+.bl-title{font-size:.93rem;font-weight:800;color:var(--grijs1);line-height:1.3;margin-bottom:2px;}
+.bl-sub{font-size:.7rem;color:var(--grijs2);font-weight:500;}
+
+.sbadge{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
+  padding:3px 9px;border-radius:10px;white-space:nowrap;flex-shrink:0;}
+.sbadge.discover{background:rgba(255,174,13,.12);color:#a06800;}
+.sbadge.experiment{background:rgba(242,100,87,.12);color:#b83525;}
+.sbadge.scale{background:rgba(20,137,204,.12);color:var(--blauw);}
+.sbadge.operate{background:rgba(52,199,89,.10);color:#1e8c3a;}
+
+.bl-bottom{padding:10px 16px 14px;display:flex;align-items:flex-end;gap:10px;}
+.bl-desc{
+  font-size:.72rem;color:var(--grijs1);line-height:1.55;opacity:.82;flex:1;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+}
+.bl-impact{display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;}
+.bl-impact-bar{height:40px;width:5px;background:var(--grijs4);border-radius:3px;overflow:hidden;
+  display:flex;align-items:flex-end;}
+.bl-impact-fill{width:100%;border-radius:3px;transition:height .5s ease;}
+.bl-impact-label{font-size:.52rem;color:var(--grijs2);font-weight:700;text-transform:uppercase;letter-spacing:.3px;}
+
+/* ═══════════════════════════════════════════════════════════
+   VIEW 4 — KPI
+═══════════════════════════════════════════════════════════ */
+#view-kpi{display:flex;flex-direction:column;gap:12px;}
+.kpi-top{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.kpi-card{
+  background:var(--white);border-radius:var(--radius);
+  padding:26px 22px;box-shadow:var(--shadow);
+  position:relative;overflow:hidden;
+}
+.kpi-card::before{
+  content:'';position:absolute;top:-20px;right:-20px;
+  width:90px;height:90px;border-radius:50%;
+  background:var(--paars);opacity:.05;
+}
+.kpi-icon{font-size:1.6rem;margin-bottom:10px;display:block;}
+.kpi-n{font-size:3.2rem;font-weight:900;color:var(--paars);line-height:1;
+  letter-spacing:-1px;font-variant-numeric:tabular-nums;}
+.kpi-label{font-size:.78rem;font-weight:700;color:var(--grijs1);margin-top:5px;
+  text-transform:uppercase;letter-spacing:.4px;}
+.kpi-sub{font-size:.68rem;color:var(--grijs2);margin-top:3px;font-weight:500;}
+.kpi-delta{
+  margin-top:10px;display:inline-flex;align-items:center;gap:5px;
+  font-size:.68rem;font-weight:700;
+  background:rgba(52,199,89,.1);color:#1e8c3a;
+  padding:3px 9px;border-radius:8px;
+}
+
+.kpi-mid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.phase-bar-card{
+  background:var(--white);border-radius:var(--radius);
+  padding:18px 18px 16px;box-shadow:var(--shadow);
+}
+.phase-bar-title{font-size:.65rem;font-weight:800;text-transform:uppercase;
+  letter-spacing:.5px;margin-bottom:10px;}
+.phase-bar-track{height:6px;background:var(--grijs4);border-radius:3px;overflow:hidden;margin-bottom:8px;}
+.phase-bar-fill{height:100%;border-radius:3px;transition:width .8s ease;}
+.phase-bar-bottom{display:flex;justify-content:space-between;align-items:baseline;}
+.phase-bar-count{font-size:1.6rem;font-weight:900;line-height:1;}
+.phase-bar-label{font-size:.62rem;color:var(--grijs2);font-weight:600;}
+
+.kpi-bottom{
+  background:var(--white);border-radius:var(--radius);
+  padding:18px 22px;box-shadow:var(--shadow);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.kpi-bottom-title{font-size:.65rem;font-weight:800;text-transform:uppercase;
+  letter-spacing:.5px;color:var(--paars);margin-bottom:8px;}
+.sector-pills{display:flex;gap:8px;flex-wrap:wrap;}
+.sector-pill{
+  padding:5px 12px;border-radius:20px;font-size:.7rem;font-weight:700;
+  display:flex;align-items:center;gap:6px;
+}
+.sector-count{font-size:.8rem;font-weight:900;}
+.aci-badge{
+  background:linear-gradient(135deg,var(--paars),var(--cta));
+  color:white;padding:10px 20px;border-radius:12px;
+  text-align:center;
+}
+.aci-badge-title{font-size:.62rem;font-weight:800;text-transform:uppercase;
+  letter-spacing:.6px;opacity:.8;margin-bottom:4px;}
+.aci-badge-main{font-size:1.1rem;font-weight:900;letter-spacing:-.2px;}
+.aci-badge-sub{font-size:.62rem;opacity:.75;margin-top:2px;}
+</style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══════════════════════════════════════════════ -->
+<header class="header">
+  <div class="hdr-left">
+    <div class="tbi-mark">TBI</div>
+    <div class="hdr-sep"></div>
+    <div>
+      <div class="hdr-title">AI Team — Innovation Dashboard</div>
+      <div class="hdr-sub">
+        <span class="live-dot"></span>
+        21 bedrijven &nbsp;·&nbsp; 15 AI-projecten &nbsp;·&nbsp; ACI-strategie × SparkOptimus
+      </div>
+    </div>
+  </div>
+
+  <div class="nav-pills" id="nav-pills">
+    <div class="pill active" data-view="0">Kaart</div>
+    <div class="pill" data-view="1">Pipeline</div>
+    <div class="pill" data-view="2">Backlog</div>
+    <div class="pill" data-view="3">KPI's</div>
+  </div>
+
+  <div class="hdr-right">
+    <div id="clock">00:00:00</div>
+    <div class="hdr-date" id="datum"></div>
+  </div>
+</header>
+
+<!-- ═══ MAIN ════════════════════════════════════════════════ -->
+<main class="main">
+
+  <!-- VIEW 1: KAART -->
+  <div class="view active" id="view-kaart">
+    <svg id="nl-map"></svg>
+    <div id="map-tt"></div>
+    <div class="map-overlay map-legend">
+      <div class="legend-title">Sector</div>
+      <div class="legend-item"><div class="ldot" style="background:#630d80"></div>Techniek</div>
+      <div class="legend-item"><div class="ldot" style="background:#2a8a2a"></div>Bouw &amp; Ontwikkeling</div>
+      <div class="legend-item"><div class="ldot" style="background:#1489cc"></div>Infra</div>
+      <div class="legend-item"><div class="ldot" style="background:#404040"></div>Holding / SSC ICT</div>
+      <div class="legend-sep"></div>
+      <div class="legend-title">Rijpheid</div>
+      <div class="legend-item"><div class="ldot" style="background:#ffae0d"></div>Discover</div>
+      <div class="legend-item"><div class="ldot" style="background:#f26457"></div>Experiment</div>
+      <div class="legend-item"><div class="ldot" style="background:#1489cc"></div>Scale</div>
+      <div class="legend-item"><div class="ldot" style="background:#34c759"></div>Operate</div>
+    </div>
+    <div class="map-overlay map-stats" id="map-stats"></div>
+  </div>
+
+  <!-- VIEW 2: PIPELINE -->
+  <div class="view" id="view-pipeline">
+    <div class="pipe-heads" id="pipe-heads"></div>
+    <div class="pipe-cols" id="pipe-cols"></div>
+  </div>
+
+  <!-- VIEW 3: BACKLOG -->
+  <div class="view" id="view-backlog">
+    <div class="bl-wrap" id="bl-wrap">
+      <div class="bl-grid" id="bl-grid"></div>
+    </div>
+  </div>
+
+  <!-- VIEW 4: KPI -->
+  <div class="view" id="view-kpi">
+    <div class="kpi-top" id="kpi-top"></div>
+    <div class="kpi-mid" id="kpi-mid"></div>
+    <div class="kpi-bottom" id="kpi-bottom"></div>
+  </div>
+
+</main>
+
+<!-- ═══ PROGRESS BAR ════════════════════════════════════════ -->
+<div class="progress-wrap"><div class="progress-fill" id="prog"></div></div>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// DATA
+// ─────────────────────────────────────────────────────────────
+// ── PMC Fase kleur mapping ────────────────────────────────────────────────
+// Paars = TBI Holding centraal | Teal = transitie | Groen = bedrijf eigen
+const PMC = {
+  'Idee':          {bg:'rgba(99,13,128,.10)',   border:'#630d80', text:'#3e0850', dot:'#630d80',   fin:'Holding fonds',     kleur:'paars'},
+  'Prototype':     {bg:'rgba(122,53,150,.10)',  border:'#7a3596', text:'#4a1a60', dot:'#7a3596',   fin:'Holding fonds',     kleur:'paars'},
+  'Pilots':        {bg:'rgba(29,122,110,.10)',  border:'#1d7a6e', text:'#0a4a44', dot:'#1d7a6e',   fin:'Co-financiering',   kleur:'teal'},
+  'Go-to-Market':  {bg:'rgba(42,122,26,.10)',   border:'#2a7a1a', text:'#164010', dot:'#2a7a1a',   fin:'Eigen budget',      kleur:'groen'},
+  'Scale-Up':      {bg:'rgba(58,144,32,.10)',   border:'#3a9020', text:'#1e5010', dot:'#3a9020',   fin:'Volledig bedrijf',  kleur:'groen'},
+};
+const STAGES = ['Idee','Prototype','Pilots','Go-to-Market','Scale-Up'];
+const STAGE_DESCS = {
+  'Idee':         'TBI Holding — Holding fonds',
+  'Prototype':    'TBI Holding — Holding fonds',
+  'Pilots':       'Transitie — co-financiering',
+  'Go-to-Market': 'TBI Bedrijf — eigen budget',
+  'Scale-Up':     'TBI Bedrijf — volledig eigen',
+};
+// Legacy alias so SC still works (used by backlog cards)
+const SC = PMC;
+
+const SECTOR_C = {
+  TECHNIEK:'#630d80', BOUW:'#2a8a2a', INFRA:'#1489cc', HOLDING:'#404040'
+};
+
+const PROJECTS = [
+  // Bronnen: werkenbij.tbi.nl/contact + individuele bedrijfswebsites, geocoded via OSM Nominatim
+  {bedrijf:'Croonwolter&dros', sector:'TECHNIEK', lat:51.9532, lng:4.5563,
+   titel:'AI Predictief Onderhoud', sub:'Installaties & gebouwbeheer',
+   status:'Pilots', domein:'Operations', impact:4,
+   desc:'AI-model dat storingen voorspelt in technische installaties van utiliteitsgebouwen op basis van sensordata en onderhoudshistorie.'},
+
+  {bedrijf:'Croonwolter&dros', sector:'TECHNIEK', lat:51.9535, lng:4.5568,
+   titel:'Copilot Adoptie', sub:'Documentverwerking & rapportage',
+   status:'Go-to-Market', domein:'Werkvoorbereiding', impact:3,
+   desc:'Brede uitrol van Microsoft 365 Copilot voor mail, documenten en rapportage bij 1.800+ medewerkers.'},
+
+  {bedrijf:'Comfort Partners', sector:'TECHNIEK', lat:52.2989, lng:4.9553,
+   titel:'AI Warmtepomp Optimalisatie', sub:'Energietransitie',
+   status:'Pilots', domein:'Energietransitie', impact:5,
+   desc:'AI-gestuurde regelstrategie voor hybride warmtepompsystemen; meet en reduceert faalkosten en energieverbruik bij woningcomplexen.'},
+
+  {bedrijf:'WTH Vloerverwarming', sector:'TECHNIEK', lat:51.7144, lng:5.4168,
+   titel:'AI Configurator', sub:'Product configuratie tool',
+   status:'Idee', domein:'Product', impact:3,
+   desc:'Intelligente tool die automatisch vloerverwarmingsontwerpen genereert op basis van plattegrond, opbrengsten en voorkeuren van de installateur.'},
+
+  {bedrijf:'Giesbers InstallatieGroep', sector:'TECHNIEK', lat:51.8203, lng:5.6961,
+   titel:'AI Kwaliteitscontrole', sub:'Installatietechniek',
+   status:'Idee', domein:'Kwaliteit', impact:3,
+   desc:'AI-ondersteuning bij kwaliteitscontrole van W-installaties in houtbouwprojecten en energieneutrale renovaties.'},
+
+  {bedrijf:'ERA Contour', sector:'BOUW', lat:52.0419, lng:4.5052,
+   titel:'AI Werkvoorbereiding', sub:'Seriematige woningbouw',
+   status:'Go-to-Market', domein:'Bouwproces', impact:5,
+   desc:'AI-ondersteuning bij werktekeningen, bestellijsten en planningen voor seriematige woningbouw op basis van gestandaardiseerde BIM-modellen.'},
+
+  {bedrijf:'J.P. van Eesteren', sector:'BOUW', lat:52.0268, lng:4.6820,
+   titel:'AI Faalkosten Reductie', sub:'Projectbeheersing',
+   status:'Pilots', domein:'Risico', impact:5,
+   desc:'AI-analyse van historische projectdata om risicos en faalkosten vroeg in de werkvoorbereiding te signaleren en proactief bij te sturen.'},
+
+  {bedrijf:'Koopmans Bouwgroep', sector:'BOUW', lat:52.9586, lng:5.9302,
+   titel:'AI Calculatie & Bestek', sub:'Aanbesteding',
+   status:'Prototype', domein:'Calculatie', impact:4,
+   desc:'Automatische kostenraming en besteksgeneratie op basis van architectuurtekeningen en BIM-modellen via LLM-koppeling.'},
+
+  {bedrijf:'Voorbij Prefab', sector:'BOUW', lat:52.4251, lng:4.7739,
+   titel:'AI Productie Optimalisatie', sub:'Prefab betonelementen',
+   status:'Prototype', domein:'Productie', impact:4,
+   desc:'AI-optimalisatie van productieplanning, matrijsplanning en kwaliteitscontrole in de industriële prefab betonproductie.'},
+
+  {bedrijf:'Hazenberg Bouw', sector:'BOUW', lat:51.5856, lng:5.0661,
+   titel:'AI Document Analyse', sub:'Contracten & kwaliteit',
+   status:'Idee', domein:'Processen', impact:3,
+   desc:'Automatisch analyseren van contracten, UAV-GC en besteksomschrijvingen met behulp van large language models.'},
+
+  {bedrijf:'Synchroon', sector:'BOUW', lat:52.0895, lng:5.1071,
+   titel:'AI Gebiedsontwikkeling', sub:'Locatieanalyse',
+   status:'Idee', domein:'Ontwikkeling', impact:4,
+   desc:'AI-gestuurde analyse van locatiepotentie, woningvraag en stedenbouwkundige kansen als input voor gebiedsontwikkelingsstrategieën.'},
+
+  {bedrijf:'HEVO', sector:'BOUW', lat:51.6843, lng:5.2846,
+   titel:'AI Huisvestingsadvies', sub:'Zorg, onderwijs & overheid',
+   status:'Idee', domein:'Advies', impact:3,
+   desc:'AI-ondersteuning bij locatieanalyse en programma van eisen voor complexe huisvestingsopgaven in zorg, onderwijs en overheid.'},
+
+  {bedrijf:'MDB', sector:'BOUW', lat:52.0210, lng:4.6152,
+   titel:'AI Materieel & Planning', sub:'Bouwlogistiek',
+   status:'Idee', domein:'Logistiek', impact:3,
+   desc:'AI-optimalisatie van materieelnzet, onderhoud en bouwlogistiek voor TBI-bouwprojecten.'},
+
+  {bedrijf:'Mobilis', sector:'INFRA', lat:51.9532, lng:4.5568,
+   titel:'AI Risico Analyse Infra', sub:'Grote infrastructuurprojecten',
+   status:'Prototype', domein:'Risico', impact:5,
+   desc:'AI-model voor realtime risicoanalyse van grote infraprojecten op basis van planning en uitvoeringsdata; Zuidasdok toepassing in voorbereiding.'},
+
+  {bedrijf:'Voorbij Funderingstechniek', sector:'INFRA', lat:52.4251, lng:4.7741,
+   titel:'AI Grondonderzoek', sub:'Funderingsadvies',
+   status:'Idee', domein:'Vakkennis', impact:4,
+   desc:'AI-ondersteuning bij interpretatie van sonderingen en grondonderzoekdata voor snellere, nauwkeurigere funderingsadviezen.'},
+
+  {bedrijf:'TBI SSC ICT', sector:'HOLDING', lat:51.9237, lng:4.4725,
+   titel:'ACI Framework Implementatie', sub:'Augmented Collective Intelligence',
+   status:'Go-to-Market', domein:'Strategie', impact:5,
+   desc:'Uitrol van het ACI-framework: AI als dienaar van menselijke expertise, activator van humaan kapitaal — geïmplementeerd in alle 21 TBI-bedrijven.'},
+
+  {bedrijf:'TBI SSC ICT', sector:'HOLDING', lat:51.9240, lng:4.4720,
+   titel:'AI Value Scan Rollout', sub:'SparkOptimus × TBI',
+   status:'Scale-Up', domein:'Strategie', impact:5,
+   desc:'AI Value Scans bij alle 21 TBI-bedrijven; fundeert de TBI-brede AI-agenda en prioriteiten per sector (Bouw, Techniek, Infra).'},
+];
+
+// Group per bedrijf
+const BEDRIJF_MAP = {};
+PROJECTS.forEach(p => {
+  if (!BEDRIJF_MAP[p.bedrijf]) BEDRIJF_MAP[p.bedrijf] = {bedrijf:p.bedrijf,sector:p.sector,lat:p.lat,lng:p.lng,projecten:[]};
+  BEDRIJF_MAP[p.bedrijf].projecten.push(p);
+});
+const BEDRIJVEN = Object.values(BEDRIJF_MAP);
+
+// ─────────────────────────────────────────────────────────────
+// CLOCK
+// ─────────────────────────────────────────────────────────────
+const DAYS = ['zondag','maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag'];
+const MONTHS = ['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'];
+function tickClock(){
+  const n=new Date();
+  document.getElementById('clock').textContent=
+    [n.getHours(),n.getMinutes(),n.getSeconds()].map(v=>String(v).padStart(2,'0')).join(':');
+  document.getElementById('datum').textContent=
+    `${DAYS[n.getDay()]} ${n.getDate()} ${MONTHS[n.getMonth()]} ${n.getFullYear()}`;
+}
+setInterval(tickClock,1000); tickClock();
+
+// ─────────────────────────────────────────────────────────────
+// VIEW ROTATION
+// ─────────────────────────────────────────────────────────────
+const VIEW_DUR = 18000;
+const views = document.querySelectorAll('.view');
+const pills = document.querySelectorAll('.pill');
+const prog = document.getElementById('prog');
+let cur = 0, rotTimer = null, progRAF = null, progStart = null;
+let mapInited = false;
+let blScrollPos = 0;
+
+function goTo(idx) {
+  if(rotTimer) clearTimeout(rotTimer);
+  if(progRAF) cancelAnimationFrame(progRAF);
+  views[cur].classList.remove('active');
+  pills[cur].classList.remove('active');
+  cur = ((idx % views.length) + views.length) % views.length;
+  views[cur].classList.add('active');
+  pills[cur].classList.add('active');
+  if(cur === 0 && !mapInited){ setTimeout(initMap, 100); mapInited=true; }
+  prog.style.transition='none'; prog.style.width='0%';
+  progStart = performance.now();
+  (function tick(){
+    const pct = Math.min((performance.now()-progStart)/VIEW_DUR*100,100);
+    prog.style.width = pct+'%';
+    if(pct<100) progRAF=requestAnimationFrame(tick);
+  })();
+  rotTimer = setTimeout(()=>goTo(cur+1), VIEW_DUR);
+}
+
+pills.forEach((p,i) => p.addEventListener('click', ()=>goTo(i)));
+
+// ─────────────────────────────────────────────────────────────
+// MAP
+// ─────────────────────────────────────────────────────────────
+function initMap(){
+  const container = document.getElementById('view-kaart');
+  const W = container.offsetWidth  || 900;
+  const H = container.offsetHeight || 600;
+
+  const svg = d3.select('#nl-map')
+    .attr('width', W).attr('height', H)
+    .attr('viewBox', `0 0 ${W} ${H}`);
+
+  // Sea background
+  svg.append('rect').attr('width',W).attr('height',H).attr('fill','#d4e9f4');
+
+  // Subtle sea label
+  svg.append('text').attr('class','sea-label')
+    .attr('x', W*0.12).attr('y', H*0.35)
+    .attr('transform',`rotate(-8,${W*0.12},${H*0.35})`)
+    .text('NOORDZEE');
+
+  const proj = d3.geoMercator()
+    .center([5.28, 52.20])
+    .scale(W * 14.2)
+    .translate([W * 0.46, H * 0.52]);
+
+  const path = d3.geoPath().projection(proj);
+  const tt   = document.getElementById('map-tt');
+
+  // Load provinces
+  fetch('https://cartomap.github.io/nl/wgs84/provincie_2023.geojson')
+    .then(r => { if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(geo => {
+      // Province fills with subtle variation
+      const fills = ['#f5edf9','#f2e8f7','#f7f1fb','#ede0f5','#f0e6f8',
+                     '#f5edf9','#eadff3','#f3ecfa','#f6f0fb','#ede0f5',
+                     '#f2e8f7','#f7f1fb'];
+      svg.selectAll('.prov')
+        .data(geo.features)
+        .enter().append('path')
+        .attr('class','prov')
+        .attr('d', path)
+        .attr('fill', (_,i) => fills[i % fills.length])
+        .attr('opacity',0)
+        .transition().duration(500).delay((_,i)=>i*40)
+        .attr('opacity',1);
+
+      // Province name labels
+      svg.selectAll('.prov-lbl')
+        .data(geo.features)
+        .enter().append('text')
+        .attr('class','prov-lbl')
+        .attr('transform', d => `translate(${path.centroid(d)})`)
+        .text(d => d.properties.statnaam || d.properties.name || '')
+        .attr('opacity',0)
+        .transition().delay(600).duration(400)
+        .attr('opacity',0.9);
+
+      drawPins(proj, tt, svg);
+    })
+    .catch(() => {
+      // Fallback: world atlas country outline
+      fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-10m.json')
+        .then(r=>r.json())
+        .then(world=>{
+          const countries = topojson.feature(world, world.objects.countries);
+          const nl = countries.features.find(f=>f.id==='528'||f.id===528);
+          if(nl){
+            svg.append('path').datum(nl).attr('class','prov').attr('d',path);
+          }
+          drawPins(proj, tt, svg);
+        }).catch(() => drawPins(proj, tt, svg));
+    });
+
+  // Stats
+  const totalP  = PROJECTS.length;
+  const active  = PROJECTS.filter(p=>['Experiment','Scale','Operate'].includes(p.status)).length;
+  document.getElementById('map-stats').innerHTML = `
+    <div class="map-stat"><div class="map-stat-n">${BEDRIJVEN.length}</div><div class="map-stat-l">Bedrijven</div></div>
+    <div class="map-stat"><div class="map-stat-n">${totalP}</div><div class="map-stat-l">Projecten</div></div>
+    <div class="map-stat"><div class="map-stat-n">${active}</div><div class="map-stat-l">Actief</div></div>`;
+}
+
+function drawPins(proj, tt, svg) {
+  BEDRIJVEN.forEach(b => {
+    const [px, py] = proj([b.lng, b.lat]);
+    const col  = SECTOR_C[b.sector];
+    const abbr = b.bedrijf.split(/[\s&]+/).map(w=>w[0]).join('').substring(0,2).toUpperCase();
+    const g = svg.append('g').attr('transform',`translate(${px},${py})`);
+
+    // Drop shadow
+    g.append('circle').attr('r',17).attr('class','pin-shadow')
+      .attr('fill',col).attr('transform','translate(1.5,2)');
+    // Main circle
+    g.append('circle').attr('r',14).attr('class','pin-circle').attr('fill',col);
+    // Text
+    g.append('text').attr('class','pin-txt').text(abbr);
+    // Badge: project count
+    if(b.projecten.length > 1){
+      g.append('circle').attr('class','pin-badge').attr('cx',11).attr('cy',-11).attr('r',7);
+      g.append('text').attr('class','pin-badge-txt').attr('x',11).attr('y',-11)
+        .text(b.projecten.length);
+    }
+    // Tooltip
+    g.style('cursor','pointer')
+      .on('mouseover', function(event){
+        const pHTML = b.projecten.map(p=>`
+          <div class="tt-proj">
+            <div class="tt-dot" style="background:${SC[p.status].dot}"></div>
+            <span>${p.titel}</span>
+          </div>`).join('');
+        tt.innerHTML=`<span class="tt-sector" style="background:${col}">${b.sector}</span>
+          <div class="tt-name">${b.bedrijf}</div>${pHTML}`;
+        const r = document.getElementById('view-kaart').getBoundingClientRect();
+        const ex = event.clientX - r.left;
+        const ey = event.clientY - r.top;
+        tt.style.left = (ex + 16)+'px';
+        tt.style.top  = Math.max(10, ey - 30)+'px';
+        tt.style.opacity='1';
+      })
+      .on('mouseout', ()=>{ tt.style.opacity='0'; });
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
+// PIPELINE
+// ─────────────────────────────────────────────────────────────
+(function buildPipeline(){
+  const heads = document.getElementById('pipe-heads');
+  const cols = document.getElementById('pipe-cols');
+  STAGES.forEach(stage=>{
+    const sc = SC[stage];
+    const ps = PROJECTS.filter(p=>p.status===stage);
+    // head
+    const h = document.createElement('div');
+    h.className='pipe-head';
+    h.style.borderTop=`3px solid ${sc.border}`;
+    h.innerHTML=`<div class="ph-left">
+      <div class="ph-label" style="color:${sc.text}">${stage}</div>
+      <div class="ph-desc">${STAGE_DESCS[stage]}</div>
+    </div>
+    <div class="ph-count" style="color:${sc.text}">${ps.length}</div>`;
+    heads.appendChild(h);
+    // col
+    const col = document.createElement('div');
+    col.className='pipe-col';
+    col.style.cssText=`border:1.5px solid ${sc.border}20;background:${sc.bg};`;
+    ps.forEach(p=>{
+      const sc2 = SECTOR_C[p.sector];
+      const dots = Array.from({length:5},(_,i)=>`<div class="idot${i<p.impact?' on':''}"></div>`).join('');
+      const card = document.createElement('div');
+      card.className='proj-card';
+      card.style.borderLeftColor=sc2;
+      card.innerHTML=`<div class="pc-co">${p.bedrijf}</div>
+        <div class="pc-title">${p.titel}</div>
+        <div class="pc-foot">
+          <span class="pc-tag" style="background:${sc2}">${p.domein}</span>
+          <div class="pc-impact">${dots}</div>
+        </div>`;
+      col.appendChild(card);
+    });
+    cols.appendChild(col);
+  });
+})();
+
+// ─────────────────────────────────────────────────────────────
+// BACKLOG
+// ─────────────────────────────────────────────────────────────
+(function buildBacklog(){
+  const grid = document.getElementById('bl-grid');
+  PROJECTS.forEach(p=>{
+    const sc = SECTOR_C[p.sector];
+    const statusClass = p.status.toLowerCase();
+    const impactPct = (p.impact/5)*100;
+    const card = document.createElement('div');
+    card.className='bl-card';
+    card.innerHTML=`<div class="bl-top">
+      <div class="bl-header">
+        <div class="bl-co" style="color:${sc}">${p.bedrijf}</div>
+        <span class="sbadge ${statusClass}">${p.status}</span>
+      </div>
+      <div class="bl-title">${p.titel}</div>
+      <div class="bl-sub">${p.sub}</div>
+    </div>
+    <div class="bl-bottom">
+      <div class="bl-desc">${p.desc}</div>
+      <div class="bl-impact">
+        <div class="bl-impact-bar">
+          <div class="bl-impact-fill" style="height:${impactPct}%;background:${sc}"></div>
+        </div>
+        <div class="bl-impact-label">Impact</div>
+      </div>
+    </div>`;
+    grid.appendChild(card);
+  });
+
+  // Auto-scroll
+  const wrap = document.getElementById('bl-wrap');
+  setInterval(()=>{
+    if(cur!==2) return;
+    const max = wrap.scrollHeight - wrap.clientHeight;
+    if(max<=0) return;
+    blScrollPos += 0.6;
+    if(blScrollPos > max) blScrollPos = 0;
+    wrap.scrollTop = blScrollPos;
+  }, 16);
+})();
+
+// ─────────────────────────────────────────────────────────────
+// KPI
+// ─────────────────────────────────────────────────────────────
+(function buildKPI(){
+  const top = document.getElementById('kpi-top');
+  const mid = document.getElementById('kpi-mid');
+  const bot = document.getElementById('kpi-bottom');
+
+  const kpis = [
+    {n:21, label:'TBI-bedrijven', sub:'Betrokken in AI-programma', icon:'🏢', delta:'+3 dit kwartaal'},
+    {n:PROJECTS.length, label:'AI-projecten', sub:'In de portfolio', icon:'🚀', delta:'+4 dit kwartaal'},
+    {n:PROJECTS.filter(p=>['Scale','Operate'].includes(p.status)).length,
+      label:'In Productie', sub:'Scale + Operate fase', icon:'⚡', delta:'2× vs vorig jaar'},
+    {n:Math.round(PROJECTS.filter(p=>p.impact>=4).length/PROJECTS.length*100),
+      label:'Hoog Impact', sub:'Score 4 of hoger (%)', icon:'🎯', delta:`${PROJECTS.filter(p=>p.impact>=4).length} projecten`},
+  ];
+
+  kpis.forEach(k=>{
+    const el = document.createElement('div');
+    el.className='kpi-card';
+    el.innerHTML=`<span class="kpi-icon">${k.icon}</span>
+      <div class="kpi-n" data-target="${k.n}">0</div>
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-sub">${k.sub}</div>
+      <div class="kpi-delta">↑ ${k.delta}</div>`;
+    top.appendChild(el);
+  });
+
+  // Phase bars
+  const phases = [
+    {stage:'Discover',   color:SC.Discover.dot},
+    {stage:'Experiment', color:SC.Experiment.dot},
+    {stage:'Scale',      color:SC.Scale.dot},
+    {stage:'Operate',    color:SC.Operate.dot},
+  ];
+  const totalP = PROJECTS.length;
+  phases.forEach(ph=>{
+    const cnt = PROJECTS.filter(p=>p.status===ph.stage).length;
+    const pct = Math.round(cnt/totalP*100);
+    const el = document.createElement('div');
+    el.className='phase-bar-card';
+    el.innerHTML=`<div class="phase-bar-title" style="color:${ph.color}">${ph.stage}</div>
+      <div class="phase-bar-track">
+        <div class="phase-bar-fill" style="width:${pct}%;background:${ph.color}"></div>
+      </div>
+      <div class="phase-bar-bottom">
+        <div class="phase-bar-count" style="color:${ph.color}">${cnt}</div>
+        <div class="phase-bar-label">${pct}% van portfolio</div>
+      </div>`;
+    mid.appendChild(el);
+  });
+
+  // Bottom strip
+  const sectors = ['TECHNIEK','BOUW','INFRA','HOLDING'];
+  const sDiv = document.createElement('div');
+  sDiv.innerHTML=`<div class="kpi-bottom-title">Verdeling per sector</div>
+    <div class="sector-pills">${sectors.map(s=>{
+      const cnt = PROJECTS.filter(p=>p.sector===s).length;
+      const c = SECTOR_C[s];
+      const tc = s==='BOUW' ? c : c;
+      return `<div class="sector-pill" style="background:${c}10;border:1.5px solid ${c}30">
+        <div class="ldot" style="background:${c}"></div>
+        <span style="font-size:.7rem;font-weight:700;color:${c}">${s}</span>
+        <span class="sector-count" style="color:${c}">${cnt}</span>
+      </div>`;
+    }).join('')}</div>`;
+  bot.appendChild(sDiv);
+
+  const aci = document.createElement('div');
+  aci.className='aci-badge';
+  aci.innerHTML=`<div class="aci-badge-title">Strategie</div>
+    <div class="aci-badge-main">Augmented Collective Intelligence</div>
+    <div class="aci-badge-sub">AI als activator van humaan kapitaal · TBI 2025</div>`;
+  bot.appendChild(aci);
+
+  // Animate counters when view 3 becomes active
+  function animCounters(){
+    top.querySelectorAll('[data-target]').forEach(el=>{
+      const target = parseInt(el.dataset.target);
+      let cur2=0; const step=Math.max(1,Math.ceil(target/30));
+      const iv=setInterval(()=>{
+        cur2=Math.min(cur2+step,target);
+        el.textContent=cur2+(el.parentElement.querySelector('.kpi-label').textContent==='Hoog Impact'?'%':'');
+        if(cur2>=target) clearInterval(iv);
+      },40);
+    });
+  }
+  // Trigger on first view of KPI
+  let kpiAnimated=false;
+  const kpiObs=new MutationObserver(()=>{
+    if(views[3].classList.contains('active')&&!kpiAnimated){
+      kpiAnimated=true; animCounters();
+    }
+  });
+  kpiObs.observe(views[3],{attributes:true,attributeFilter:['class']});
+})();
+
+// ─────────────────────────────────────────────────────────────
+// START
+// ─────────────────────────────────────────────────────────────
+setTimeout(initMap,600);
+mapInited=true;
+progStart=performance.now();
+(function tick(){
+  const pct=Math.min((performance.now()-progStart)/VIEW_DUR*100,100);
+  prog.style.width=pct+'%';
+  if(pct<100) progRAF=requestAnimationFrame(tick);
+})();
+rotTimer=setTimeout(()=>goTo(1),VIEW_DUR);
+</script>
+</body>
+</html>

@@ -1,0 +1,336 @@
+name: "🤖 TBI AI Initiatief"
+description: "Dien een nieuw AI-initiatief in voor de TBI AI backlog"
+title: "[INITIATIEF] <Naam initiatief> — <TBI Bedrijf>"
+labels: ["status: nieuw"]
+assignees: []
+projects: ["tbi-holdings/1"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🤖 TBI AI Initiatiefkaart
+        Vul alle verplichte velden in. Na indiening komt dit automatisch in de AI backlog terecht
+        en ontvangen het AI team en de ambassadeur een notificatie.
+
+        ---
+
+  # ════════════════════════════════════════
+  # SECTIE 1 — IDENTIFICATIE
+  # ════════════════════════════════════════
+
+  - type: dropdown
+    id: bedrijf
+    attributes:
+      label: "TBI Bedrijf"
+      description: "Van welk TBI-bedrijf is dit initiatief?"
+      options:
+        - Comfort Partners
+        - Croonwolter&dros
+        - Eekels Technology
+        - ERA Contour
+        - GeWOONhout
+        - Giesbers InstallatieGroep
+        - Hazenberg Bouw
+        - HEVO
+        - J.P. van Eesteren
+        - Koopmans Bouwgroep
+        - MDB
+        - Mobilis
+        - Nico de Bont
+        - Rutges Vernieuwt
+        - Soltegro
+        - Struijk
+        - Synchroon
+        - TBI Holdings
+        - TBI SSC ICT
+        - Voorbij Funderingstechniek
+        - Voorbij Prefab
+        - WTH Vloerverwarming
+    validations:
+      required: true
+
+  - type: dropdown
+    id: sector
+    attributes:
+      label: "Sector"
+      options:
+        - TECHNIEK
+        - BOUW & ONTWIKKELING
+        - INFRA
+        - HOLDING / SSC ICT
+    validations:
+      required: true
+
+  - type: input
+    id: ambassadeur
+    attributes:
+      label: "Ambassadeur (Directielid)"
+      description: "Naam van het directielid dat dit initiatief sponsort."
+      placeholder: "bv. Jan de Vries — Directeur ERA Contour"
+    validations:
+      required: true
+
+  - type: input
+    id: eigenaar
+    attributes:
+      label: "Eigenaar initiatief"
+      description: "Wie is verantwoordelijk voor de uitvoering?"
+      placeholder: "bv. Marieke Jansen — Innovatiemanager"
+    validations:
+      required: true
+
+  - type: input
+    id: adoptie
+    attributes:
+      label: "Adoptieverantwoordelijke"
+      description: "Wie begeleidt de menselijke kant van de implementatie?"
+      placeholder: "bv. Peter Smit — HR / Teamleider"
+    validations:
+      required: true
+
+  - type: input
+    id: locatie
+    attributes:
+      label: "Locatie hoofdkantoor (adres)"
+      description: "Wordt automatisch gebruikt voor de kaartweergave in het dashboard."
+      placeholder: "bv. Zilverstraat 39, Zoetermeer"
+    validations:
+      required: false
+
+  # ════════════════════════════════════════
+  # SECTIE 2 — DOELSTELLING
+  # ════════════════════════════════════════
+
+  - type: markdown
+    attributes:
+      value: "---\n### 🎯 Doelstelling"
+
+  - type: textarea
+    id: doelstelling
+    attributes:
+      label: "Doelstelling"
+      description: "Wat wil je bereiken met dit initiatief? Wees concreet en meetbaar."
+      placeholder: |
+        bv. Het reduceren van faalkosten in de werkvoorbereiding met 20%
+        door automatische analyse van historische projectdata.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: ai_strategie
+    attributes:
+      label: "Aansluiting bij TBI AI Strategie (ACI-fase)"
+      description: "In welke fase van het ACI-framework past dit initiatief?"
+      options:
+        - "Assistent — AI ondersteunt individuele medewerker (fase 1)"
+        - "Digitale collega — AI werkt samen in een team (fase 2)"
+        - "Agent — AI handelt autonoom namens een proces (fase 3)"
+    validations:
+      required: true
+
+  # ════════════════════════════════════════
+  # SECTIE 3 — OMSCHRIJVING
+  # ════════════════════════════════════════
+
+  - type: markdown
+    attributes:
+      value: "---\n### 📋 Omschrijving"
+
+  - type: textarea
+    id: omschrijving
+    attributes:
+      label: "Algemene omschrijving (situatie · complicatie · beoogde oplossing)"
+      description: "Gebruik de SCR-structuur: wat is de huidige situatie, wat is de complicatie, wat is de oplossing?"
+      placeholder: |
+        **Situatie:** Momenteel wordt de werkvoorbereiding handmatig uitgevoerd...
+
+        **Complicatie:** Dit kost gemiddeld 3 dagen per project en leidt tot fouten...
+
+        **Beoogde oplossing:** Een AI-copilot die automatisch...
+      render: markdown
+    validations:
+      required: true
+
+  - type: dropdown
+    id: domein
+    attributes:
+      label: "Primair domein"
+      description: "Op welk vakgebied heeft dit initiatief de meeste impact?"
+      options:
+        - Werkvoorbereiding & Planning
+        - Calculatie & Aanbesteding
+        - Bouwproces & Uitvoering
+        - Energietransitie & Duurzaamheid
+        - Risico & Kwaliteitsbeheersing
+        - Operations & Onderhoud
+        - Documentbeheer & Contracten
+        - Data & Rapportage
+        - Strategie & Adoptie
+        - Klant & Markt
+        - Overig
+    validations:
+      required: true
+
+  # ════════════════════════════════════════
+  # SECTIE 4 — BENODIGDHEDEN
+  # ════════════════════════════════════════
+
+  - type: markdown
+    attributes:
+      value: "---\n### 🔧 Benodigdheden"
+
+  - type: input
+    id: org_deel
+    attributes:
+      label: "Welk deel van de organisatie raakt dit?"
+      placeholder: "bv. Werkvoorbereiding, Financiën, Projectleiding, Gehele organisatie"
+    validations:
+      required: true
+
+  - type: input
+    id: processen
+    attributes:
+      label: "Welke processen raakt dit?"
+      placeholder: "bv. Calculatie, BIM-modellering, Kwaliteitscontrole, Facturatie"
+    validations:
+      required: true
+
+  - type: textarea
+    id: teamleden
+    attributes:
+      label: "Welke teamleden zijn nodig voor het initiatief?"
+      placeholder: |
+        - Projectleider (intern):
+        - Domeinexpert:
+        - IT / data engineer (SSC ICT):
+        - Eindgebruikers:
+    validations:
+      required: true
+
+  - type: dropdown
+    id: veranderingsbereidheid
+    attributes:
+      label: "Verwachte veranderingsbereidheid"
+      description: "Hoe ontvankelijk is de organisatie voor deze verandering?"
+      options:
+        - "🟢 Hoog — team is enthousiast en klaar om te starten"
+        - "🟡 Gemiddeld — enige begeleiding en communicatie nodig"
+        - "🔴 Laag — significante change management nodig"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: fase_start
+    attributes:
+      label: "PMC Startfase"
+      description: |
+        In welke PMC-fase bevindt dit initiatief zich nu?
+        Paars (fase 1–2) = TBI Holding centraal gefinancierd.
+        Groen (fase 4–5) = bedrijf verantwoordelijk & eigen budget.
+      options:
+        - "Fase 1 — Idee (paars: TBI Holding, Holding fonds)"
+        - "Fase 2 — Prototype (paars: TBI Holding, Holding fonds)"
+        - "Fase 3 — Pilots (teal: co-financiering TBI + bedrijf)"
+        - "Fase 4 — Go-to-Market (groen: TBI Bedrijf, eigen budget primair)"
+        - "Fase 5 — Scale-Up (groen: TBI Bedrijf, volledig eigen budget)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: financiering
+    attributes:
+      label: "Financiering"
+      description: "Hoe wordt dit initiatief gefinancierd? Sluit aan bij de PMC-fase."
+      options:
+        - "TBI Holding fonds — centraal budget (fase 1–2)"
+        - "Co-financiering — TBI + bedrijf 50/50 (fase 3)"
+        - "TBI Bedrijf eigen budget (primair) + TBI ondersteuning (fase 4)"
+        - "Volledig eigen bedrijfsbudget (fase 5)"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: gonogo_criteria
+    attributes:
+      label: "Go/No-Go criteria — huidige fase"
+      description: "Vink aan welke criteria al zijn voldaan voor de huidige fase."
+      options:
+        - label: "**Fase 1→2:** Idee is in potentie herhaalbaar / schaalbaar"
+        - label: "**Fase 1→2:** Interne toets uitgevoerd"
+        - label: "**Fase 1→2:** Sponsor vanuit de business aanwezig"
+        - label: "**Fase 1→2:** Minimaal 2 personen met complementair profiel"
+        - label: "**Fase 2→3:** MVP is technisch maakbaar en betaalbaar"
+        - label: "**Fase 2→3:** Haarscherp inzicht in probleem en rol van de klant"
+        - label: "**Fase 2→3:** Team is strategisch divers en kan agile werken"
+        - label: "**Fase 3→4:** Minimaal 2 succesvolle betaalde pilots"
+        - label: "**Fase 3→4:** Make-or-buy analyse uitgevoerd"
+        - label: "**Fase 3→4:** Team staat klaar voor groei (incl. leider met strategische skills)"
+        - label: "**Fase 4→5:** Business model is uitgewerkt en aantoonbaar"
+        - label: "**Fase 4→5:** PDCA-cyclus aanwezig"
+        - label: "**Fase 4→5:** Targets & Incentives afgestemd op beoogde groei"
+
+  # ════════════════════════════════════════
+  # SECTIE 5 — SUCCESDEFINITIE
+  # ════════════════════════════════════════
+
+  - type: markdown
+    attributes:
+      value: "---\n### ✅ Succesdefinitie"
+
+  - type: textarea
+    id: succes
+    attributes:
+      label: "Wanneer is het initiatief geslaagd?"
+      description: "Beschrijf concreet het gewenste eindresultaat."
+      placeholder: |
+        Het initiatief is geslaagd wanneer:
+        - 80% van de werkvoorbereiders de tool actief gebruikt
+        - De gemiddelde voorbereidingstijd is gereduceerd van X naar Y uur
+        - De foutmarge in bestellingen is gedaald met Z%
+    validations:
+      required: true
+
+  - type: textarea
+    id: kpi
+    attributes:
+      label: "KPI & KPI-boom"
+      description: "Definieer de meetbare indicatoren. Gebruik een boomstructuur."
+      placeholder: |
+        🎯 Hoofd-KPI: Reductie faalkosten met 20%
+           └ Sub-KPI 1: Adoptiegraad tool > 80% medewerkers
+           └ Sub-KPI 2: Tijdsbesparing werkvoorbereiding > 30%
+           └ Sub-KPI 3: Kwaliteitsscore bestellingen > 95%
+      render: markdown
+    validations:
+      required: true
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: "Verwachte impact (1–5)"
+      description: "Hoe groot schat jij de potentiële impact voor het bedrijf?"
+      options:
+        - "5 — Transformatief: raakt kernproces, grote financiële impact"
+        - "4 — Groot: significante tijdsbesparing of kwaliteitsverbetering"
+        - "3 — Gemiddeld: duidelijke verbetering, beperkte scope"
+        - "2 — Klein: lokale verbetering, niche toepassing"
+        - "1 — Experimenteel: leren en verkennen"
+    validations:
+      required: true
+
+  # ════════════════════════════════════════
+  # AKKOORD
+  # ════════════════════════════════════════
+
+  - type: checkboxes
+    id: akkoord
+    attributes:
+      label: "Afstemming"
+      options:
+        - label: "De ambassadeur (directielid) is akkoord met indiening van dit initiatief"
+          required: true
+        - label: "De eigenaar heeft voldoende capaciteit om het initiatief op te pakken"
+          required: false
+        - label: "Er is een eerste inschatting van kosten en doorlooptijd gemaakt"
+          required: false

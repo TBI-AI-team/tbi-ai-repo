@@ -1,0 +1,252 @@
+name: 🏷️ Auto-label AI Initiatief
+
+# Triggered when a new issue is opened or edited
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  auto-label:
+    name: Label & triage nieuw initiatief
+    runs-on: ubuntu-latest
+
+    # Only run on issues created from our template (has the "status: nieuw" label)
+    if: contains(github.event.issue.labels.*.name, 'status: nieuw') || github.event.action == 'opened'
+
+    steps:
+      - name: 🔍 Parse issue body
+        id: parse
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const body = context.payload.issue.body || '';
+
+            // ── Helper: extract value after a markdown header ──────────────
+            function extractField(body, label) {
+              // GitHub forms render as: ### Label\n\nValue
+              const regex = new RegExp(
+                `###\\s+${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\n+([\\s\\S]*?)(?=\\n###|\\n---|\$)`,
+                'i'
+              );
+              const match = body.match(regex);
+              return match ? match[1].trim() : '';
+            }
+
+            // ── Extract all form fields ────────────────────────────────────
+            const bedrijf    = extractField(body, 'TBI Bedrijf');
+            const sector     = extractField(body, 'Sector');
+            const fase       = extractField(body, 'Startfase');
+            const domein     = extractField(body, 'Primair domein');
+            const impact     = extractField(body, 'Verwachte impact');
+            const strategie  = extractField(body, 'Aansluiting bij TBI AI Strategie');
+            const verandering= extractField(body, 'Verwachte veranderingsbereidheid');
+
+            console.log('Parsed fields:', { bedrijf, sector, fase, domein, impact });
+
+            // ── Normalise PMC fase label ───────────────────────────────────
+            let faseLabel = 'fase: Idee';
+            let faseKleur = 'paars';
+            if      (fase.includes('Fase 2') || fase.includes('Prototype'))    { faseLabel = 'fase: Prototype';    faseKleur = 'paars'; }
+            else if (fase.includes('Fase 3') || fase.includes('Pilots'))       { faseLabel = 'fase: Pilots';       faseKleur = 'teal'; }
+            else if (fase.includes('Fase 4') || fase.includes('Go-to-Market')) { faseLabel = 'fase: Go-to-Market'; faseKleur = 'groen'; }
+            else if (fase.includes('Fase 5') || fase.includes('Scale-Up'))     { faseLabel = 'fase: Scale-Up';     faseKleur = 'groen'; }
+
+            // ── Financiering label ─────────────────────────────────────────
+            const finRaw = extractField(body, 'Financiering');
+            let finLabel = 'financiering: holding-fonds';
+            if      (finRaw.includes('Co-financiering'))  finLabel = 'financiering: co-financiering';
+            else if (finRaw.includes('primair'))          finLabel = 'financiering: bedrijf-primair';
+            else if (finRaw.includes('Volledig'))         finLabel = 'financiering: volledig-bedrijf';
+
+            // ── Normalise sector label ─────────────────────────────────────
+            let sectorLabel = 'sector: OVERIG';
+            if      (sector.includes('TECHNIEK'))          sectorLabel = 'sector: TECHNIEK';
+            else if (sector.includes('BOUW'))              sectorLabel = 'sector: BOUW';
+            else if (sector.includes('INFRA'))             sectorLabel = 'sector: INFRA';
+            else if (sector.includes('HOLDING'))           sectorLabel = 'sector: HOLDING';
+
+            // ── Normalise impact label ─────────────────────────────────────
+            const impactNum = impact.match(/^(\d)/)?.[1] || '3';
+            const impactLabel = `impact: ${impactNum}`;
+
+            // ── Normalise ACI fase ─────────────────────────────────────────
+            let aciLabel = 'aci: assistent';
+            if      (strategie.includes('fase 2')) aciLabel = 'aci: digitale collega';
+            else if (strategie.includes('fase 3')) aciLabel = 'aci: agent';
+
+            // ── Normalise verandering label ────────────────────────────────
+            let veranderingLabel = 'verandering: gemiddeld';
+            if      (verandering.includes('Hoog'))  veranderingLabel = 'verandering: hoog';
+            else if (verandering.includes('Laag'))  veranderingLabel = 'verandering: laag';
+
+            // ── Build label array ──────────────────────────────────────────
+            const labels = [
+              bedrijf  ? `bedrijf: ${bedrijf}` : null,
+              sectorLabel,
+              faseLabel,
+              `kleur: ${faseKleur}`,
+              finLabel,
+              impactLabel,
+              aciLabel,
+              veranderingLabel,
+              domein   ? `domein: ${domein.split(' &')[0].split(' —')[0].toLowerCase()}` : null,
+            ].filter(Boolean);
+
+            core.setOutput('labels', JSON.stringify(labels));
+            core.setOutput('fase',   faseLabel);
+            core.setOutput('bedrijf', bedrijf);
+            core.setOutput('impact_num', impactNum);
+
+      # ── Apply labels ──────────────────────────────────────────────────────
+      - name: 🏷️ Apply labels
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const labels = JSON.parse('${{ steps.parse.outputs.labels }}');
+
+            // Ensure all labels exist (create if not)
+            for (const label of labels) {
+              try {
+                await github.rest.issues.getLabel({
+                  owner: context.repo.owner,
+                  repo:  context.repo.repo,
+                  name:  label,
+                });
+              } catch (e) {
+                // Label doesn't exist — create it with TBI colour mapping
+                const color = getLabelColor(label);
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo:  context.repo.repo,
+                  name:  label,
+                  color: color,
+                });
+                console.log(`Created label: ${label} (#${color})`);
+              }
+            }
+
+            // Apply labels to the issue
+            await github.rest.issues.addLabels({
+              owner:      context.repo.owner,
+              repo:       context.repo.repo,
+              issue_number: context.payload.issue.number,
+              labels:     labels,
+            });
+
+            function getLabelColor(label) {
+              if (label.startsWith('bedrijf:'))            return '630d80';
+              if (label.startsWith('sector:'))             return '7a9015';
+              if (label === 'fase: Idee')                  return '630d80';
+              if (label === 'fase: Prototype')             return '7a3596';
+              if (label === 'fase: Pilots')                return '1d7a6e';
+              if (label === 'fase: Go-to-Market')          return '2a7a1a';
+              if (label === 'fase: Scale-Up')              return '3a9020';
+              if (label === 'kleur: paars')                return '630d80';
+              if (label === 'kleur: teal')                 return '1d7a6e';
+              if (label === 'kleur: groen')                return '3a9020';
+              if (label === 'financiering: holding-fonds') return '534AB7';
+              if (label === 'financiering: co-financiering') return '1D9E75';
+              if (label.startsWith('financiering:'))       return '3B6D11';
+              if (label.startsWith('impact:'))             return 'f26457';
+              if (label.startsWith('aci:'))                return 'a816d9';
+              if (label.startsWith('domein:'))             return '26bdbd';
+              if (label.startsWith('verandering:'))        return 'ffae0d';
+              if (label.startsWith('status:'))             return '768694';
+              return 'cccccc';
+            }
+
+      # ── Set milestone (current quarter) ──────────────────────────────────
+      - name: 📅 Assign quarterly milestone
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const now   = new Date();
+            const year  = now.getFullYear();
+            const month = now.getMonth(); // 0-indexed
+            const q     = Math.floor(month / 3) + 1;
+            const title = `Q${q} ${year}`;
+
+            // Find or create the milestone
+            const { data: milestones } = await github.rest.issues.listMilestones({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              state: 'open',
+            });
+
+            let milestone = milestones.find(m => m.title === title);
+
+            if (!milestone) {
+              // Create it with a due date at end of the quarter
+              const dueMonth = q * 3 - 1; // last month of quarter (0-indexed)
+              const dueDate  = new Date(year, dueMonth + 1, 0); // last day of month
+              const { data } = await github.rest.issues.createMilestone({
+                owner:    context.repo.owner,
+                repo:     context.repo.repo,
+                title:    title,
+                due_on:   dueDate.toISOString(),
+                description: `AI-initiatieven voor ${title}`,
+              });
+              milestone = data;
+              console.log(`Created milestone: ${title}`);
+            }
+
+            await github.rest.issues.update({
+              owner:        context.repo.owner,
+              repo:         context.repo.repo,
+              issue_number: context.payload.issue.number,
+              milestone:    milestone.number,
+            });
+
+      # ── Add triage comment ─────────────────────────────────────────────────
+      - name: 💬 Post triage comment
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fase    = '${{ steps.parse.outputs.fase }}';
+            const bedrijf = '${{ steps.parse.outputs.bedrijf }}';
+            const impact  = '${{ steps.parse.outputs.impact_num }}';
+
+            const faseEmoji = {
+              'fase: Discover':   '🔍',
+              'fase: Experiment': '🧪',
+              'fase: Scale':      '🚀',
+              'fase: Operate':    '⚡',
+            }[fase] || '📋';
+
+            const impactStars = '⭐'.repeat(parseInt(impact));
+
+            const body = `## ${faseEmoji} Initiatief ontvangen en getriaged
+
+            **Bedrijf:** ${bedrijf}
+            **Fase:** ${fase.replace('fase: ', '')}
+            **Impact:** ${impactStars} (${impact}/5)
+
+            ---
+
+            ### Volgende stappen
+
+            | Stap | Actie | Door wie |
+            |------|-------|----------|
+            | 1 | Review door TBI AI team | @ai-team |
+            | 2 | Afstemming ambassadeur | Indiener |
+            | 3 | Fase beslissing (GO / NO GO) | AI team + ambassadeur |
+            | 4 | Opname in sprint backlog | @ai-team |
+
+            > Het AI team neemt binnen **5 werkdagen** contact op voor een intake gesprek.
+            > Vragen? Reageer op dit issue of mail [ai-team@tbi.nl](mailto:ai-team@tbi.nl).
+            `;
+
+            await github.rest.issues.createComment({
+              owner:        context.repo.owner,
+              repo:         context.repo.repo,
+              issue_number: context.payload.issue.number,
+              body:         body,
+            });

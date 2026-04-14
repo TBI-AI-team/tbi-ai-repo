@@ -1,0 +1,13 @@
+{
+  "_comment": "Dit bestand wordt automatisch gegenereerd door .github/workflows/update-dashboard.yml",
+  "_info": "Niet handmatig aanpassen — wordt overschreven bij elke workflow run",
+  "projects": [],
+  "stats": {
+    "total": 0,
+    "open": 0,
+    "by_fase": {},
+    "by_sector": {},
+    "by_bedrijf": {},
+    "generated": "2025-04-14T00:00:00.000Z"
+  }
+}
